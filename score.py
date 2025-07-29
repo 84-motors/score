@@ -2,79 +2,133 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+# 項目定義
+columns = [
+    "名前", "サーブ打数", "サーブ決定数", "サーブ効果数", "サーブミス数",
+    "サーブカットA数", "サーブカットB数", "サーブカットC数", "サーブカットミス",
+    "スパイク打数", "スパイク決定数", "スパイク被ブロック数", "スパイクミス数", "ブロック決定数"
+]
+
+# 初期化
+if "input_rows" not in st.session_state:
+    st.session_state.input_rows = 1
+
+if "volleyball_data" not in st.session_state:
+    st.session_state.volleyball_data = pd.DataFrame(columns=columns)
+
+# タブ選択
 tab = st.sidebar.radio("メニュー", ["データ入力", "グラフ表示"])
 
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(columns=[
-        "プレイヤー", "スパイク_打数", "スパイク_決定数", "スパイク_効果数", "スパイク_被ブロック", "スパイク_ミス",
-        "サーブ_打数", "サーブ_決定数", "サーブ_効果数", "サーブ_被ブロック", "サーブ_ミス",
-        "レシーブ_A", "レシーブ_B", "レシーブ_C", "最終スコア"
-    ])
-
+# データ入力タブ
 if tab == "データ入力":
-    st.title("バレーボールスコア入力")
+    st.header("バレーボールスコア入力")
 
     with st.form("score_form"):
-        player = st.text_input("プレイヤー名")
+        inputs = []
+        for i in range(st.session_state.input_rows):
+            st.markdown(f"### 選手 {i+1}")
+            col1, col2, col3 = st.columns(3)
 
-        st.subheader("スパイク")
-        spike_attempts = st.number_input("打数（スパイク）", min_value=0, step=1)
-        spike_success = st.number_input("決定数（スパイク）", min_value=0, step=1)
-        spike_effective = st.number_input("効果数（スパイク）", min_value=0, step=1)
-        spike_blocked = st.number_input("被ブロック（スパイク）", min_value=0, step=1)
-        spike_miss = st.number_input("ミス（スパイク）", min_value=0, step=1)
+            with col1:
+                name = st.text_input(f"名前_{i}", key=f"name_{i}")
+                serve_attempts = st.number_input(f"サーブ打数_{i}", min_value=0, key=f"serve_attempts_{i}")
+                serve_success = st.number_input(f"サーブ決定数_{i}", min_value=0, key=f"serve_success_{i}")
+                serve_effective = st.number_input(f"サーブ効果数_{i}", min_value=0, key=f"serve_effective_{i}")
+                serve_miss = st.number_input(f"サーブミス数_{i}", min_value=0, key=f"serve_miss_{i}")
 
-        st.subheader("サーブ")
-        serve_attempts = st.number_input("打数（サーブ）", min_value=0, step=1)
-        serve_success = st.number_input("決定数（サーブ）", min_value=0, step=1)
-        serve_effective = st.number_input("効果数（サーブ）", min_value=0, step=1)
-        serve_blocked = st.number_input("被ブロック（サーブ）", min_value=0, step=1)
-        serve_miss = st.number_input("ミス（サーブ）", min_value=0, step=1)
+            with col2:
+                cut_a = st.number_input(f"サーブカットA数_{i}", min_value=0, key=f"cut_a_{i}")
+                cut_b = st.number_input(f"サーブカットB数_{i}", min_value=0, key=f"cut_b_{i}")
+                cut_c = st.number_input(f"サーブカットC数_{i}", min_value=0, key=f"cut_c_{i}")
+                cut_miss = st.number_input(f"サーブカットミス_{i}", min_value=0, key=f"cut_miss_{i}")
 
-        st.subheader("サーブレシーブ")
-        receive_a = st.number_input("A本数", min_value=0, step=1)
-        receive_b = st.number_input("B本数", min_value=0, step=1)
-        receive_c = st.number_input("C本数", min_value=0, step=1)
+            with col3:
+                spike_attempts = st.number_input(f"スパイク打数_{i}", min_value=0, key=f"spike_attempts_{i}")
+                spike_success = st.number_input(f"スパイク決定数_{i}", min_value=0, key=f"spike_success_{i}")
+                spike_blocked = st.number_input(f"スパイク被ブロック数_{i}", min_value=0, key=f"spike_blocked_{i}")
+                spike_miss = st.number_input(f"スパイクミス数_{i}", min_value=0, key=f"spike_miss_{i}")
+                block_success = st.number_input(f"ブロック決定数_{i}", min_value=0, key=f"block_success_{i}")
 
-        final_score = st.number_input("最終スコア", min_value=0, step=1)
+            inputs.append([
+                name, serve_attempts, serve_success, serve_effective, serve_miss,
+                cut_a, cut_b, cut_c, cut_miss,
+                spike_attempts, spike_success, spike_blocked, spike_miss, block_success
+            ])
 
-        submitted = st.form_submit_button("追加")
-
+        submitted = st.form_submit_button("保存")
         if submitted:
-            new_data = pd.DataFrame([[
-                player, spike_attempts, spike_success, spike_effective, spike_blocked, spike_miss,
-                serve_attempts, serve_success, serve_effective, serve_blocked, serve_miss,
-                receive_a, receive_b, receive_c, final_score
-            ]], columns=st.session_state.data.columns)
-            st.session_state.data = pd.concat([st.session_state.data, new_data], ignore_index=True)
-            st.success("データを追加しました")
+            new_data = pd.DataFrame(inputs, columns=columns)
+            st.session_state.volleyball_data = pd.concat([st.session_state.volleyball_data, new_data], ignore_index=True)
+            st.success("データを保存しました")
 
-    st.write("現在のデータ")
-    st.dataframe(st.session_state.data)
+    if st.button("入力欄を追加"):
+        st.session_state.input_rows += 1
 
+# グラフ表示タブ
 elif tab == "グラフ表示":
-    st.title("スコア分析グラフ")
+    st.header("スコア分析グラフ")
 
-    if st.session_state.data.empty:
-        st.warning("データがありません。まずはデータ入力タブでデータを追加してください。")
+    if st.session_state.volleyball_data.empty:
+        st.warning("まだデータが入力されていません")
     else:
-        df = st.session_state.data
+        st.dataframe(st.session_state.volleyball_data)
 
-        st.subheader("プレイヤーごとの最終スコア")
-        fig1 = px.bar(df, x="プレイヤー", y="最終スコア", title="最終スコア")
-        st.plotly_chart(fig1)
+        df = st.session_state.volleyball_data
 
-        st.subheader("スパイク決定率")
-        df["スパイク決定率"] = df["スパイク_決定数"] / df["スパイク_打数"].replace(0, pd.NA)
-        fig2 = px.bar(df, x="プレイヤー", y="スパイク決定率", title="スパイク決定率")
-        st.plotly_chart(fig2)
+        # 得点構成チャート
+        score_data = pd.DataFrame(columns=["選手", "タイプ", "件数"])
+        for _, row in df.iterrows():
+            score_data = pd.concat([
+                score_data,
+                pd.DataFrame([
+                    {"選手": row["名前"], "タイプ": "サーブ決定数", "件数": row["サーブ決定数"]},
+                    {"選手": row["名前"], "タイプ": "スパイク決定数", "件数": row["スパイク決定数"]},
+                    {"選手": row["名前"], "タイプ": "ブロック決定数", "件数": row["ブロック決定数"]}
+                ])
+            ], ignore_index=True)
 
-        st.subheader("サーブ効果率")
-        df["サーブ効果率"] = df["サーブ_効果数"] / df["サーブ_打数"].replace(0, pd.NA)
-        fig3 = px.bar(df, x="プレイヤー", y="サーブ効果率", title="サーブ効果率")
-        st.plotly_chart(fig3)
+        fig_score = px.sunburst(
+            score_data,
+            path=["選手", "タイプ"],
+            values="件数",
+            title="選手別得点構成",
+            color="タイプ",
+            color_discrete_map={
+                "サーブ決定数": "lightblue",
+                "スパイク決定数": "deepskyblue",
+                "ブロック決定数": "blue"
+            }
+        )
 
-        st.subheader("サーブレシーブ分布")
-        receive_df = df[["プレイヤー", "レシーブ_A", "レシーブ_B", "レシーブ_C"]].melt(id_vars="プレイヤー", var_name="タイプ", value_name="本数")
-        fig4 = px.bar(receive_df, x="プレイヤー", y="本数", color="タイプ", title="サーブレシーブ分布", barmode="stack")
-        st.plotly_chart(fig4)
+        # 失点構成チャート
+        error_data = pd.DataFrame(columns=["選手", "タイプ", "件数"])
+        for _, row in df.iterrows():
+            error_data = pd.concat([
+                error_data,
+                pd.DataFrame([
+                    {"選手": row["名前"], "タイプ": "サーブミス数", "件数": row["サーブミス数"]},
+                    {"選手": row["名前"], "タイプ": "スパイクミス数", "件数": row["スパイクミス数"]},
+                    {"選手": row["名前"], "タイプ": "サーブカットミス", "件数": row["サーブカットミス"]}
+                ])
+            ], ignore_index=True)
+
+        fig_error = px.sunburst(
+            error_data,
+            path=["選手", "タイプ"],
+            values="件数",
+            title="選手別失点構成",
+            color="タイプ",
+            color_discrete_map={
+                "サーブミス数": "lightcoral",
+                "スパイクミス数": "red",
+                "サーブカットミス": "darkred"
+            }
+        )
+
+        # 横並びに表示
+        col1, col2 = st.columns(2)
+        with col1:
+            st.plotly_chart(fig_score, use_container_width=True)
+        with col2:
+            st.plotly_chart(fig_error, use_container_width=True)
+
