@@ -4,7 +4,27 @@ import plotly.express as px
 import plotly.io as pio
 import uuid
 import os
+import json
+from datetime import datetime
 
+# ログイン認証
+def login():
+    st.title("ログイン")
+    username = st.text_input("ユーザーID")
+    password = st.text_input("パスワード", type="password")
+    if st.button("ログイン"):
+        if username == "yokohamaz" and password == "father":
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("ユーザーIDまたはパスワードが間違っています")
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    login()
+    st.stop()
 
 # 項目定義
 columns = [
@@ -26,8 +46,12 @@ if "match_info" not in st.session_state:
         "score": ""
     }
 
+# 保存フォルダ
+SAVE_DIR = "saved_matches"
+os.makedirs(SAVE_DIR, exist_ok=True)
+
 # タブ選択
-tab = st.sidebar.radio("メニュー", ["入力シート", "分析シート"])
+tab = st.sidebar.radio("メニュー", ["入力シート", "分析シート", "保存済みシート"])
 
 # 入力シート
 if tab == "入力シート":
@@ -84,6 +108,45 @@ if tab == "入力シート":
             except Exception as e:
                 st.error(f"読み込みエラー: {e}")
 
+    # 保存ボタン
+    if st.button("この試合データを保存する"):
+        date_str = st.session_state.match_info["date"].strftime("%Y%m%d") if st.session_state.match_info["date"] else "未設定"
+        location = st.session_state.match_info["location"].replace(" ", "_")
+        opponent = st.session_state.match_info["opponent"].replace(" ", "_")
+        match_id = f"{date_str}_{location}_{opponent}"
+        save_data = {
+            "match_info": {
+                "date": st.session_state.match_info["date"].strftime("%Y-%m-%d") if st.session_state.match_info["date"] else "",
+                "location": st.session_state.match_info["location"],
+                "opponent": st.session_state.match_info["opponent"],
+                "score": st.session_state.match_info["score"]
+            },
+            "volleyball_data": st.session_state.volleyball_data.to_dict(orient="records")
+        }
+        with open(os.path.join(SAVE_DIR, f"{match_id}.json"), "w", encoding="utf-8") as f:
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
+        st.success("試合データを保存しました")
+
+# 保存済みシート
+elif tab == "保存済みシート":
+    st.header("保存済み試合一覧")
+    saved_files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
+    if saved_files:
+        selected_file = st.selectbox("表示する試合を選択", saved_files)
+        if st.button("この試合を読み込む"):
+            with open(os.path.join(SAVE_DIR, selected_file), "r", encoding="utf-8") as f:
+                loaded_data = json.load(f)
+                st.session_state.match_info = {
+                    "date": datetime.strptime(loaded_data["match_info"]["date"], "%Y-%m-%d").date(),
+                    "location": loaded_data["match_info"]["location"],
+                    "opponent": loaded_data["match_info"]["opponent"],
+                    "score": loaded_data["match_info"]["score"]
+                }
+                st.session_state.volleyball_data = pd.DataFrame(loaded_data["volleyball_data"])
+                st.success("試合データを読み込みました。左の「分析シート」タブで確認できます。")
+    else:
+        st.info("保存された試合データはまだありません。")
+
 # 分析シート
 elif tab == "分析シート":
     st.header("試合情報")
@@ -106,10 +169,6 @@ elif tab == "分析シート":
         player_names = df["名前"].tolist()
         color_palette = px.colors.qualitative.Set3
         color_map = {name: color_palette[i % len(color_palette)] for i, name in enumerate(player_names)}
-
-        # 調整後サーブ打数・スパイク打数
-        df["サーブ打数"] = df["サーブ打数"] - df["サーブ決定数"] - df["サーブ効果数"] - df["サーブミス数"]
-        df["スパイク打数"] = df["スパイク打数"] - df["スパイク決定数"] - df["スパイク被ブロック数"] - df["スパイクミス数"]
 
         # サーブ構成
         serve_df = df[["名前", "サーブ打数", "サーブ決定数", "サーブ効果数", "サーブミス数"]][::-1]
@@ -146,7 +205,7 @@ elif tab == "分析シート":
         fig_error.update_traces(marker=dict(colorscale="Reds"))
         st.plotly_chart(fig_error)
 
-        # ファイル名を生成（例: 20250903_東京体育館_大阪バレーボールクラブ.html）
+        # ファイル名生成
         date_str = st.session_state.match_info["date"].strftime("%Y%m%d") if st.session_state.match_info["date"] else "未設定"
         location = st.session_state.match_info["location"].replace(" ", "_")
         opponent = st.session_state.match_info["opponent"].replace(" ", "_")
