@@ -124,7 +124,7 @@ if tab == "入力シート":
             "volleyball_data": st.session_state.volleyball_data.to_dict(orient="records")
         }
         with open(os.path.join(SAVE_DIR, f"{match_id}.json"), "w", encoding="utf-8") as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=2)
+            json.dump(save_data, f, ensure_ascii=False, indent=2)
         st.success("試合データを保存しました")
 
 # 保存済みシート
@@ -133,9 +133,11 @@ elif tab == "保存済みシート":
     saved_files = [f for f in os.listdir(SAVE_DIR) if f.endswith(".json")]
     if saved_files:
         selected_file = st.selectbox("表示する試合を選択", saved_files)
-        if st.button("この試合を読み込む"):
-            with open(os.path.join(SAVE_DIR, selected_file), "r", encoding="utf-8") as f:
-                loaded_data = json.load(f)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("この試合を読み込む"):
+                with open(os.path.join(SAVE_DIR, selected_file), "r", encoding="utf-8") as f:
+                    loaded_data = json.load(f)
                 st.session_state.match_info = {
                     "date": datetime.strptime(loaded_data["match_info"]["date"], "%Y-%m-%d").date(),
                     "location": loaded_data["match_info"]["location"],
@@ -144,6 +146,14 @@ elif tab == "保存済みシート":
                 }
                 st.session_state.volleyball_data = pd.DataFrame(loaded_data["volleyball_data"])
                 st.success("試合データを読み込みました。左の「分析シート」タブで確認できます。")
+        with col2:
+            if st.button("この試合データを削除する"):
+                try:
+                    os.remove(os.path.join(SAVE_DIR, selected_file))
+                    st.success(f"{selected_file} を削除しました")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"削除エラー: {e}")
     else:
         st.info("保存された試合データはまだありません。")
 
@@ -158,34 +168,31 @@ elif tab == "分析シート":
 
     df = st.session_state.volleyball_data
     df = df[df["名前"].notna() & (df["名前"] != "")]
-
     if df.empty:
         st.warning("まだデータが入力されていません")
     else:
         st.subheader("選手データ")
         st.dataframe(df)
 
-        # 色マップ
         player_names = df["名前"].tolist()
         color_palette = px.colors.qualitative.Set3
         color_map = {name: color_palette[i % len(color_palette)] for i, name in enumerate(player_names)}
 
-        # サーブ構成
+        df["サーブ打数"] = df["サーブ打数"] - df["サーブ決定数"] - df["サーブ効果数"] - df["サーブミス数"]
+        df["スパイク打数"] = df["スパイク打数"] - df["スパイク決定数"] - df["スパイク被ブロック数"] - df["スパイクミス数"]
+
         serve_df = df[["名前", "サーブ打数", "サーブ決定数", "サーブ効果数", "サーブミス数"]][::-1]
         serve_fig = px.bar(serve_df, y="名前", x=serve_df.columns[1:], orientation="h", title="サーブ構成", color_discrete_sequence=px.colors.qualitative.Set2)
         st.plotly_chart(serve_fig)
 
-        # スパイク構成
         spike_df = df[["名前", "スパイク打数", "スパイク決定数", "スパイク被ブロック数", "スパイクミス数"]][::-1]
         spike_fig = px.bar(spike_df, y="名前", x=spike_df.columns[1:], orientation="h", title="スパイク構成", color_discrete_sequence=px.colors.qualitative.Set2)
         st.plotly_chart(spike_fig)
 
-        # サーブカット構成
         cut_df = df[["名前", "サーブカットA数", "サーブカットB数", "サーブカットC数", "サーブカットミス"]][::-1]
         cut_fig = px.bar(cut_df, y="名前", x=cut_df.columns[1:], orientation="h", title="サーブカット構成", color_discrete_sequence=px.colors.qualitative.Set2)
         st.plotly_chart(cut_fig)
 
-        # 得点構成チャート
         score_data = pd.DataFrame([
             {"選手": row["名前"], "タイプ": t, "件数": row[t]}
             for _, row in df.iterrows()
@@ -195,7 +202,6 @@ elif tab == "分析シート":
         fig_score.update_traces(marker=dict(colorscale="Blues"))
         st.plotly_chart(fig_score)
 
-        # 失点構成チャート
         error_data = pd.DataFrame([
             {"選手": row["名前"], "タイプ": t, "件数": row[t]}
             for _, row in df.iterrows()
@@ -205,13 +211,11 @@ elif tab == "分析シート":
         fig_error.update_traces(marker=dict(colorscale="Reds"))
         st.plotly_chart(fig_error)
 
-        # ファイル名生成
         date_str = st.session_state.match_info["date"].strftime("%Y%m%d") if st.session_state.match_info["date"] else "未設定"
         location = st.session_state.match_info["location"].replace(" ", "_")
         opponent = st.session_state.match_info["opponent"].replace(" ", "_")
         download_filename = f"{date_str}_{location}_{opponent}.html"
 
-        # HTMLダウンロードボタン
         html_id = str(uuid.uuid4())
         html_path = f"volleyball_charts_{html_id}.html"
         with open(html_path, "w", encoding="utf-8") as f:
